@@ -15,7 +15,7 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 set(
   SPARSE_SOLVER_INTERFACE_ROOT
-  "/home/reidatcheson/sparse_linear_algebra/installs/sparse_solver_interface/0.1.0"
+  "/home/reidatcheson/sparse_linear_algebra/installs/sparse_solver_interface"
   CACHE PATH
   "Root directory of the sparse_solver_interface installation"
 )
