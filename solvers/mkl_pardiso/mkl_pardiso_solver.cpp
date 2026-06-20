@@ -28,6 +28,8 @@ using ssi::itype_t;
 using ssi::matrix_order_t;
 using ssi::property_state_t;
 using ssi::sparse_problem_properties_t;
+using ssi::status_t;
+using ssi::support_result_t;
 using ssi::symmetric_storage_t;
 
 class context_t;
@@ -595,7 +597,9 @@ class numeric_factorization_t final : public ssi::numeric_factorization_t{
 
     dtype_t dtype() const override{ return matrix_->dtype(); }
 
-    void solve(const ssi::matrix_t& rhs,ssi::matrix_t& solution) const override{
+    ssi::solve_result_t solve(
+      const ssi::matrix_t& rhs,
+      ssi::matrix_t& solution) const override{
       if(rhs.dtype() != dtype() || solution.dtype() != dtype()){
         throw std::invalid_argument("dense solve dtype mismatch");
       }
@@ -609,6 +613,7 @@ class numeric_factorization_t final : public ssi::numeric_factorization_t{
       std::vector<unsigned char> x(b.size(),0);
       solve_impl(b.data(),x.data(),rhs.ncols());
       write_dense(solution,x);
+      return {};
     }
 
   private:
@@ -1087,6 +1092,37 @@ class context_t final :
   public ssi::context_t,
   public std::enable_shared_from_this<context_t>{
   public:
+    support_result_t check_support(
+      const sparse_problem_properties_t& properties) const override{
+      ssi::context_t::check_support(properties);
+      if(properties.orientation != graph_orientation_t::row){
+        return {status_t::unsupported,"mkl_pardiso requires row-oriented graphs"};
+      }
+      if(properties.nrows != properties.ncols){
+        return {status_t::unsupported,"mkl_pardiso requires square matrices"};
+      }
+      if(properties.itype != itype_t::i32 && properties.itype != itype_t::i64){
+        return {status_t::unsupported,"unsupported sparse index type"};
+      }
+      switch(properties.dtype){
+        case dtype_t::fp32:
+        case dtype_t::fp64:
+        case dtype_t::c64:
+        case dtype_t::c128:
+          break;
+        default:
+          return {status_t::unsupported,"unsupported scalar dtype"};
+      }
+      try{
+        validate_storage_for_mtype(
+          properties.symmetric_storage,
+          select_mtype(properties));
+      }catch(const std::invalid_argument& e){
+        return {status_t::unsupported,e.what()};
+      }
+      return {};
+    }
+
     std::shared_ptr<ssi::matrix_t> make_matrix(dtype_t dtype) override{
       return std::make_shared<dense_matrix_t>(shared_from_this(),dtype);
     }
